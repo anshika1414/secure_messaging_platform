@@ -1,17 +1,6 @@
 import pytest
-from fastapi.testclient import TestClient
-from backend.main import app
-from backend.database.database import Base, engine
 
-client = TestClient(app)
-
-@pytest.fixture(scope="module", autouse=True)
-def setup_db():
-    Base.metadata.create_all(bind=engine)
-    yield
-    Base.metadata.drop_all(bind=engine)
-
-def test_conversation_and_messaging_flow():
+def test_conversation_and_messaging_flow(client):
     # Register User 1
     u1_reg = client.post("/api/v1/auth/register", json={"username": "user1", "password": "pass123", "display_name": "User One"})
     assert u1_reg.status_code == 201

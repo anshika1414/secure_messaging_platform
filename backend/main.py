@@ -17,6 +17,7 @@ from backend.database.database import engine, Base, SessionLocal, get_db
 from backend.models import User, Session as SessionModel
 from backend.utils.auth import decode_access_token
 from backend.routers import auth, users, contacts, conversations, messages, groups
+from backend.services.message_service import MessageService
 from backend.websocket.manager import manager
 from backend.websocket.events import (
     handle_send_message,
@@ -27,17 +28,17 @@ from backend.websocket.events import (
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("signal_backend")
 
-from backend.database.seed import ensure_demo_users
+from backend.database.seed import ensure_demo_data
 
 # Initialize database tables
 Base.metadata.create_all(bind=engine)
 
-# Guarantee demo users exist
+# Guarantee demo data exists safely
 try:
     with SessionLocal() as db_init:
-        ensure_demo_users(db_init)
+        ensure_demo_data(db_init)
 except Exception as e:
-    logging.warning(f"Demo user auto-seed check skipped or failed: {e}")
+    logging.warning(f"Demo data auto-seed check skipped or failed: {e}")
 
 app = FastAPI(
     title="Signal Secure Messaging Platform API",
@@ -120,6 +121,9 @@ async def websocket_endpoint(websocket: WebSocket, token: str = Query(None)):
     # Register online connection
     user.is_online = True
     db.commit()
+
+    # Mark pending SENT messages as DELIVERED for connecting user
+    MessageService.mark_messages_delivered_for_user(db, user_id)
 
     await manager.connect(user_id, websocket)
 

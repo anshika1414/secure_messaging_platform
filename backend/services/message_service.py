@@ -91,11 +91,37 @@ class MessageService:
         messages.reverse()
         next_cursor = messages[0].id if messages and has_more else None
 
+        # Auto-mark delivered for current user in this conversation
+        MessageService.mark_messages_delivered_for_user(db, user_id, conversation_id)
+
         return {
             "messages": messages,
             "next_cursor": next_cursor,
             "has_more": has_more
         }
+
+    @staticmethod
+    def mark_messages_delivered_for_user(db: DBSession, user_id: str, conversation_id: Optional[str] = None) -> List[MessageReceipt]:
+        query = db.query(MessageReceipt).join(Message).filter(
+            MessageReceipt.user_id == user_id,
+            MessageReceipt.status == "SENT"
+        )
+        if conversation_id:
+            query = query.filter(Message.conversation_id == conversation_id)
+
+        receipts = query.all()
+        if not receipts:
+            return []
+
+        now = datetime.utcnow()
+        updated = []
+        for r in receipts:
+            r.status = "DELIVERED"
+            r.delivered_at = now
+            updated.append(r)
+
+        db.commit()
+        return updated
 
     @staticmethod
     def mark_as_read(db: DBSession, conversation_id: str, user_id: str) -> bool:

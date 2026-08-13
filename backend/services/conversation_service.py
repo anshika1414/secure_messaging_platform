@@ -89,23 +89,24 @@ class ConversationService:
         if not target_user:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Target user not found")
 
-        # Check existing direct conversation
-        user_convs = db.query(ConversationMember.conversation_id).filter(
+        # Check existing direct conversation specifically
+        direct_convs = db.query(ConversationMember.conversation_id).join(
+            Conversation, Conversation.id == ConversationMember.conversation_id
+        ).filter(
+            Conversation.type == "DIRECT",
             ConversationMember.user_id == user_id
-        ).scalar_subquery()
+        ).all()
 
-        existing_member = db.query(ConversationMember).filter(
-            ConversationMember.conversation_id.in_(user_convs),
-            ConversationMember.user_id == target_user_id
-        ).first()
-
-        if existing_member:
-            conv = db.query(Conversation).filter(
-                Conversation.id == existing_member.conversation_id,
-                Conversation.type == "DIRECT"
+        direct_conv_ids = [c[0] for c in direct_convs]
+        if direct_conv_ids:
+            target_membership = db.query(ConversationMember).filter(
+                ConversationMember.conversation_id.in_(direct_conv_ids),
+                ConversationMember.user_id == target_user_id
             ).first()
-            if conv:
-                return conv
+            if target_membership:
+                conv = db.query(Conversation).filter(Conversation.id == target_membership.conversation_id).first()
+                if conv:
+                    return conv
 
         # Create new DIRECT conversation
         conv = Conversation(type="DIRECT", last_activity_at=datetime.utcnow())

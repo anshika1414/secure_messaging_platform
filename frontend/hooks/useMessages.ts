@@ -84,12 +84,10 @@ export function useMessages(conversationId?: string) {
           setMessages((prev) =>
             prev.map((m) => {
               if (payload.message_id && m.id !== payload.message_id) return m;
-              const updatedReceipts = (m.receipts || []).map((r) => {
-                if (r.user_id === payload.user_id) {
-                  return { ...r, status: payload.status };
-                }
-                return r;
-              });
+              const hasReceipt = (m.receipts || []).some((r) => r.user_id === payload.user_id);
+              const updatedReceipts = hasReceipt
+                ? m.receipts.map((r) => (r.user_id === payload.user_id ? { ...r, status: payload.status } : r))
+                : [...(m.receipts || []), { user_id: payload.user_id, status: payload.status }];
               return { ...m, receipts: updatedReceipts };
             })
           );

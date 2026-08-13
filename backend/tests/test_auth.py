@@ -1,17 +1,6 @@
 import pytest
-from fastapi.testclient import TestClient
-from backend.main import app
-from backend.database.database import Base, engine, SessionLocal
 
-client = TestClient(app)
-
-@pytest.fixture(scope="module", autouse=True)
-def setup_db():
-    Base.metadata.create_all(bind=engine)
-    yield
-    Base.metadata.drop_all(bind=engine)
-
-def test_register_and_login():
+def test_register_and_login(client):
     # 1. Register test user
     reg_payload = {
         "username": "testuser",

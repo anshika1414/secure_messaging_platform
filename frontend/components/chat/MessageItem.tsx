@@ -35,17 +35,46 @@ export const MessageItem: React.FC<MessageItemProps> = ({
     }
   };
 
-  // Determine highest receipt status
-  const getReceiptStatus = () => {
-    if (!message.receipts || message.receipts.length === 0) return 'SENT';
-    const isAnyRead = message.receipts.some((r) => r.status === 'READ');
-    if (isAnyRead) return 'READ';
-    const isAnyDelivered = message.receipts.some((r) => r.status === 'DELIVERED');
-    if (isAnyDelivered) return 'DELIVERED';
-    return 'SENT';
+  // Determine receipt status accurately for direct & group chats
+  const calculateReceiptInfo = () => {
+    if (!message.receipts || message.receipts.length === 0) {
+      return { status: 'SENT', title: 'Sent' };
+    }
+
+    const nonSenderReceipts = message.receipts.filter((r) => r.user_id !== message.sender_id);
+    if (nonSenderReceipts.length === 0) {
+      return { status: 'SENT', title: 'Sent' };
+    }
+
+    const readCount = nonSenderReceipts.filter((r) => r.status === 'READ').length;
+    const totalCount = nonSenderReceipts.length;
+
+    if (readCount === totalCount) {
+      return {
+        status: 'READ',
+        title: totalCount > 1 ? `Read by all ${totalCount} members` : 'Read',
+      };
+    }
+
+    if (readCount > 0) {
+      return {
+        status: 'PARTIALLY_READ',
+        title: `Read by ${readCount} of ${totalCount} members`,
+      };
+    }
+
+    const isAnyDelivered = nonSenderReceipts.some((r) => r.status === 'DELIVERED');
+    if (isAnyDelivered) {
+      return {
+        status: 'DELIVERED',
+        title: totalCount > 1 ? `Delivered to group` : 'Delivered',
+      };
+    }
+
+    return { status: 'SENT', title: 'Sent' };
   };
 
-  const receiptStatus = getReceiptStatus();
+  const receiptInfo = calculateReceiptInfo();
 
   return (
     <div className={`flex flex-col my-1 ${isSelf ? 'items-end' : 'items-start'}`}>
@@ -73,13 +102,15 @@ export const MessageItem: React.FC<MessageItemProps> = ({
           <span>{formatTime(message.created_at)}</span>
 
           {isSelf && (
-            <span className="ml-1">
-              {receiptStatus === 'READ' ? (
-                <span title="Read"><CheckCheck className="w-3.5 h-3.5 text-sky-200 fill-sky-200" /></span>
-              ) : receiptStatus === 'DELIVERED' ? (
-                <span title="Delivered"><CheckCheck className="w-3.5 h-3.5 text-blue-200" /></span>
+            <span className="ml-1 cursor-default" title={receiptInfo.title}>
+              {receiptInfo.status === 'READ' ? (
+                <CheckCheck className="w-3.5 h-3.5 text-sky-200 fill-sky-200" />
+              ) : receiptInfo.status === 'PARTIALLY_READ' ? (
+                <CheckCheck className="w-3.5 h-3.5 text-sky-200" />
+              ) : receiptInfo.status === 'DELIVERED' ? (
+                <CheckCheck className="w-3.5 h-3.5 text-blue-200" />
               ) : (
-                <span title="Sent"><Check className="w-3.5 h-3.5 text-blue-200" /></span>
+                <Check className="w-3.5 h-3.5 text-blue-200" />
               )}
             </span>
           )}
