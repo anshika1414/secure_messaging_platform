@@ -1,0 +1,32 @@
+# Python virtual environment
+backend/.venv/
+*.pyc
+__pycache__/
+.pytest_cache/
+
+# Environment files
+backend/.env
+frontend/.env.local
+.env
+
+# Database
+backend/data/*.db
+backend/data/*.db-wal
+backend/data/*.db-shm
+*.db
+
+# Node.js
+frontend/node_modules/
+frontend/.next/
+frontend/out/
+frontend/build/
+*.log
+npm-debug.log*
+
+# OS / IDE
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+frontend/tsconfig.tsbuildinfo
