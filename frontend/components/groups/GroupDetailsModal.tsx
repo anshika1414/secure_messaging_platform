@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { X, Users, UserPlus, Shield, Trash2, Loader2 } from 'lucide-react';
+import { X, Users, UserPlus, Shield, Trash2, Loader2, AlertCircle } from 'lucide-react';
 import { Conversation } from '../../types/conversation';
 import { User } from '../../types/user';
 import { conversationsApi } from '../../services/api/conversations';
@@ -25,6 +25,7 @@ export const GroupDetailsModal: React.FC<GroupDetailsModalProps> = ({
   const [contacts, setContacts] = useState<ContactResponse[]>([]);
   const [selectedUserId, setSelectedUserId] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   if (!isOpen || !conversation) return null;
 
@@ -33,26 +34,31 @@ export const GroupDetailsModal: React.FC<GroupDetailsModalProps> = ({
 
   const openAddMember = async () => {
     setIsAdding(true);
+    setError(null);
     try {
       const res = await contactsApi.getContacts();
       // Filter out users already in group
       const existingIds = new Set(conversation.members?.map((m) => m.user_id) || []);
       setContacts(res.filter((c) => !existingIds.has(c.contact_user.id)));
-    } catch (e) {
+    } catch (e: any) {
       console.error(e);
+      setError('Failed to fetch contacts');
     }
   };
 
   const handleAddMemberSubmit = async () => {
     if (!selectedUserId) return;
     setIsSubmitting(true);
+    setError(null);
     try {
       const groupId = conversation.id; // groupId / convId
       await conversationsApi.addGroupMember(groupId, selectedUserId);
       onRefreshConversation();
       setIsAdding(false);
-    } catch (e) {
+      setSelectedUserId('');
+    } catch (e: any) {
       console.error('Failed to add member:', e);
+      setError(e.message || 'Failed to add member to group.');
     } finally {
       setIsSubmitting(false);
     }
@@ -60,11 +66,13 @@ export const GroupDetailsModal: React.FC<GroupDetailsModalProps> = ({
 
   const handleRemoveMember = async (targetUserId: string) => {
     setIsSubmitting(true);
+    setError(null);
     try {
       await conversationsApi.removeGroupMember(conversation.id, targetUserId);
       onRefreshConversation();
-    } catch (e) {
+    } catch (e: any) {
       console.error('Failed to remove member:', e);
+      setError(e.message || 'Failed to remove member from group.');
     } finally {
       setIsSubmitting(false);
     }
@@ -80,7 +88,11 @@ export const GroupDetailsModal: React.FC<GroupDetailsModalProps> = ({
             Group Details
           </h2>
           <button
-            onClick={onClose}
+            onClick={() => {
+              setError(null);
+              setIsAdding(false);
+              onClose();
+            }}
             className="p-1 rounded-lg text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 transition-colors"
           >
             <X className="w-5 h-5" />
@@ -89,6 +101,13 @@ export const GroupDetailsModal: React.FC<GroupDetailsModalProps> = ({
 
         {/* Body */}
         <div className="p-6 space-y-6">
+          {error && (
+            <div className="p-3 bg-rose-50 dark:bg-rose-950/50 border border-rose-200 dark:border-rose-900 rounded-xl flex items-center gap-2 text-rose-600 dark:text-rose-400 text-xs font-medium">
+              <AlertCircle className="w-4 h-4 shrink-0" />
+              <span>{error}</span>
+            </div>
+          )}
+
           {/* Group Header Info */}
           <div className="flex items-center space-x-4">
             <Avatar name={conversation.name || 'Group'} url={conversation.avatar_url} isGroup={true} size="xl" />
@@ -124,7 +143,7 @@ export const GroupDetailsModal: React.FC<GroupDetailsModalProps> = ({
                 <select
                   value={selectedUserId}
                   onChange={(e) => setSelectedUserId(e.target.value)}
-                  className="w-full p-2 bg-white dark:bg-signal-dark-panel border border-gray-200 dark:border-signal-dark-border rounded-lg text-xs"
+                  className="w-full p-2 bg-white dark:bg-signal-dark-panel border border-gray-200 dark:border-signal-dark-border rounded-lg text-xs text-gray-900 dark:text-gray-100"
                 >
                   <option value="">-- Choose Contact --</option>
                   {contacts.map((c) => (
@@ -134,7 +153,7 @@ export const GroupDetailsModal: React.FC<GroupDetailsModalProps> = ({
                   ))}
                 </select>
               ) : (
-                <p className="text-xs text-gray-400">No new contacts to add.</p>
+                <p className="text-xs text-gray-400">No new contacts available to add.</p>
               )}
               <div className="flex justify-end space-x-2">
                 <button
@@ -146,9 +165,9 @@ export const GroupDetailsModal: React.FC<GroupDetailsModalProps> = ({
                 <button
                   onClick={handleAddMemberSubmit}
                   disabled={!selectedUserId || isSubmitting}
-                  className="px-3 py-1 bg-signal-blue text-white text-xs font-medium rounded-lg disabled:opacity-50"
+                  className="px-3 py-1 bg-signal-blue text-white text-xs font-medium rounded-lg disabled:opacity-50 flex items-center gap-1"
                 >
-                  Add
+                  {isSubmitting ? <Loader2 className="w-3 h-3 animate-spin" /> : 'Add'}
                 </button>
               </div>
             </div>
@@ -185,7 +204,7 @@ export const GroupDetailsModal: React.FC<GroupDetailsModalProps> = ({
                         onClick={() => handleRemoveMember(m.user_id)}
                         disabled={isSubmitting}
                         title="Remove member"
-                        className="p-1.5 text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/40 rounded-lg transition-colors"
+                        className="p-1.5 text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/40 rounded-lg transition-colors disabled:opacity-50"
                       >
                         <Trash2 className="w-4 h-4" />
                       </button>
@@ -200,3 +219,4 @@ export const GroupDetailsModal: React.FC<GroupDetailsModalProps> = ({
     </div>
   );
 };
+

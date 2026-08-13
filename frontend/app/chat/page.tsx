@@ -41,12 +41,22 @@ export default function ChatPage() {
     }
   }, [isAuthLoading, isAuthenticated, router]);
 
-  // Select first conversation by default if available and none selected
+  // Sync activeConversation when conversations list changes or member updates occur
   useEffect(() => {
-    if (!activeConversation && conversations.length > 0) {
+    if (activeConversation) {
+      const updated = conversations.find((c) => c.id === activeConversation.id);
+      if (updated) {
+        setActiveConversation(updated);
+      } else if (conversations.length > 0) {
+        // If active conversation was removed or current user left, fallback to first available conversation
+        setActiveConversation(conversations[0]);
+      } else {
+        setActiveConversation(null);
+      }
+    } else if (conversations.length > 0) {
       setActiveConversation(conversations[0]);
     }
-  }, [conversations, activeConversation]);
+  }, [conversations]);
 
   const handleSelectConversation = (conv: Conversation) => {
     setActiveConversation(conv);
