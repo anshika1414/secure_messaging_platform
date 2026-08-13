@@ -9,18 +9,23 @@ import { Avatar } from '../common/Avatar';
 interface NewChatModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onSelectConversation: (conv: Conversation) => void;
+  /**
+   * Called once the DM is created or found on the backend.
+   * The parent is responsible for calling upsertConversation, setActive, and closing the modal.
+   */
+  onConversationReady: (conv: Conversation) => void;
 }
 
 export const NewChatModal: React.FC<NewChatModalProps> = ({
   isOpen,
   onClose,
-  onSelectConversation,
+  onConversationReady,
 }) => {
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<User[]>([]);
   const [isSearching, setIsSearching] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
+  const [focusedIndex, setFocusedIndex] = useState<number>(-1);
 
   if (!isOpen) return null;
 
@@ -29,6 +34,7 @@ export const NewChatModal: React.FC<NewChatModalProps> = ({
     if (!query.trim()) return;
 
     setIsSearching(true);
+    setFocusedIndex(-1);
     try {
       const res = await usersApi.search(query);
       setResults(res);
@@ -40,15 +46,36 @@ export const NewChatModal: React.FC<NewChatModalProps> = ({
   };
 
   const handleSelectUser = async (targetUser: User) => {
+    if (isCreating) return;
     setIsCreating(true);
     try {
+      // Backend get_or_create returns the full ConversationResponse —
+      // use it directly without a separate re-fetch.
       const conv = await conversationsApi.createDirect(targetUser.id);
-      onSelectConversation(conv);
-      onClose();
+      onConversationReady(conv);
     } catch (e) {
       console.error('Error starting conversation:', e);
     } finally {
       setIsCreating(false);
+    }
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (results.length === 0) return;
+
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      setFocusedIndex((prev) => Math.min(prev + 1, results.length - 1));
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      setFocusedIndex((prev) => Math.max(prev - 1, 0));
+    } else if (e.key === 'Enter' && focusedIndex >= 0) {
+      e.preventDefault();
+      handleSelectUser(results[focusedIndex]);
+    } else if (e.key === 'Enter' && results.length === 1) {
+      // If exactly one result and Enter pressed without explicit arrow-key focus, select it
+      e.preventDefault();
+      handleSelectUser(results[0]);
     }
   };
 
@@ -76,8 +103,10 @@ export const NewChatModal: React.FC<NewChatModalProps> = ({
             <input
               type="text"
               value={query}
-              onChange={(e) => setQuery(e.target.value)}
+              onChange={(e) => { setQuery(e.target.value); setFocusedIndex(-1); }}
+              onKeyDown={handleKeyDown}
               placeholder="Search by username or phone (+1...)"
+              autoFocus
               className="w-full pl-10 pr-24 py-2.5 bg-gray-100 dark:bg-signal-dark-surface border border-transparent focus:border-signal-blue rounded-xl text-sm text-gray-900 dark:text-gray-100 placeholder-gray-400 focus:outline-none transition-all"
             />
             <button
@@ -92,11 +121,15 @@ export const NewChatModal: React.FC<NewChatModalProps> = ({
           {/* Results List */}
           <div className="mt-4 max-h-64 overflow-y-auto space-y-1 pr-1">
             {results.length > 0 ? (
-              results.map((u) => (
+              results.map((u, idx) => (
                 <div
                   key={u.id}
                   onClick={() => handleSelectUser(u)}
-                  className="flex items-center justify-between p-3 rounded-xl hover:bg-gray-100 dark:hover:bg-signal-dark-surface cursor-pointer transition-colors"
+                  className={`flex items-center justify-between p-3 rounded-xl cursor-pointer transition-colors ${
+                    focusedIndex === idx
+                      ? 'bg-blue-50 dark:bg-signal-dark-surface border border-signal-blue/30'
+                      : 'hover:bg-gray-100 dark:hover:bg-signal-dark-surface'
+                  }`}
                 >
                   <div className="flex items-center space-x-3">
                     <Avatar name={u.display_name} url={u.avatar_url} size="md" isOnline={u.is_online} />
@@ -113,7 +146,7 @@ export const NewChatModal: React.FC<NewChatModalProps> = ({
                 </div>
               ))
             ) : query && !isSearching ? (
-              <p className="text-center py-6 text-xs text-gray-400">No users found matching "{query}"</p>
+              <p className="text-center py-6 text-xs text-gray-400">No users found matching &quot;{query}&quot;</p>
             ) : (
               <p className="text-center py-6 text-xs text-gray-400">Type a username or phone number to search.</p>
             )}

@@ -32,6 +32,7 @@ export default function ChatPage() {
     isLoading: isConvLoading,
     refreshConversations,
     markConversationRead,
+    upsertConversation,
   } = useConversations(activeConversation?.id);
 
   // Redirect to /login if unauthenticated
@@ -41,18 +42,21 @@ export default function ChatPage() {
     }
   }, [isAuthLoading, isAuthenticated, router]);
 
-  // Sync activeConversation when conversations list changes or member updates occur
+  // Sync activeConversation when conversations list changes or member updates occur.
+  // IMPORTANT: do NOT clobber an activeConversation that was just created and is not yet
+  // present in the list (e.g. a brand-new DM injected via upsertConversation before the
+  // WebSocket NEW_MESSAGE triggers a re-sort). We only fall back to conversations[0] when
+  // the active conversation is definitively removed (e.g. user was kicked from a group).
   useEffect(() => {
     if (activeConversation) {
       const updated = conversations.find((c) => c.id === activeConversation.id);
       if (updated) {
+        // Keep the conversation data in sync with what the list has (e.g. after member changes)
         setActiveConversation(updated);
-      } else if (conversations.length > 0) {
-        // If active conversation was removed or current user left, fallback to first available conversation
-        setActiveConversation(conversations[0]);
-      } else {
-        setActiveConversation(null);
       }
+      // If not found in list, do NOT fall back — the conversation may have just been
+      // injected via upsertConversation and the list might lag by one render cycle.
+      // The conversation will appear in the list on the next render.
     } else if (conversations.length > 0) {
       setActiveConversation(conversations[0]);
     }
@@ -118,13 +122,21 @@ export default function ChatPage() {
       <NewChatModal
         isOpen={isNewChatOpen}
         onClose={() => setIsNewChatOpen(false)}
-        onSelectConversation={handleSelectConversation}
+        onConversationReady={(conv) => {
+          upsertConversation(conv);
+          handleSelectConversation(conv);
+          setIsNewChatOpen(false);
+        }}
       />
 
       <NewGroupModal
         isOpen={isNewGroupOpen}
         onClose={() => setIsNewGroupOpen(false)}
-        onSelectConversation={handleSelectConversation}
+        onConversationReady={(conv) => {
+          upsertConversation(conv);
+          handleSelectConversation(conv);
+          setIsNewGroupOpen(false);
+        }}
       />
 
       <GroupDetailsModal

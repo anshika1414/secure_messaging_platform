@@ -8,13 +8,17 @@ import { Avatar } from '../common/Avatar';
 interface NewGroupModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onSelectConversation: (conv: Conversation) => void;
+  /**
+   * Called with the newly created group conversation.
+   * The parent is responsible for calling upsertConversation, setActive, and closing the modal.
+   */
+  onConversationReady: (conv: Conversation) => void;
 }
 
 export const NewGroupModal: React.FC<NewGroupModalProps> = ({
   isOpen,
   onClose,
-  onSelectConversation,
+  onConversationReady,
 }) => {
   const [groupName, setGroupName] = useState('');
   const [contacts, setContacts] = useState<ContactResponse[]>([]);
@@ -47,13 +51,12 @@ export const NewGroupModal: React.FC<NewGroupModalProps> = ({
     setIsSubmitting(true);
     try {
       const res = await conversationsApi.createGroup(groupName.trim(), selectedIds);
-      // Fetch full conversation
+      // Fetch the full conversation data for the newly created group
       const allConvs = await conversationsApi.getConversations();
       const created = allConvs.find((c) => c.id === res.conversation_id);
       if (created) {
-        onSelectConversation(created);
+        onConversationReady(created);
       }
-      onClose();
     } catch (e) {
       console.error('Failed to create group:', e);
     } finally {

@@ -70,10 +70,38 @@ export function useConversations(activeConvId?: string) {
     }
   }, []);
 
+  /**
+   * Insert a newly created/found conversation into the list immediately,
+   * without waiting for a full re-fetch. If the conversation already exists
+   * (e.g. an existing DM found by the backend), it is updated in-place.
+   * New conversations are inserted at the top (sorted by last_activity_at).
+   */
+  const upsertConversation = useCallback((conv: Conversation) => {
+    setConversations((prev) => {
+      const existingIndex = prev.findIndex((c) => c.id === conv.id);
+      let next: Conversation[];
+      if (existingIndex !== -1) {
+        // Update existing entry in-place
+        next = [...prev];
+        next[existingIndex] = conv;
+      } else {
+        // Prepend new conversation
+        next = [conv, ...prev];
+      }
+      // Re-sort by last_activity_at desc
+      return next.sort(
+        (a, b) =>
+          new Date(b.last_activity_at).getTime() -
+          new Date(a.last_activity_at).getTime()
+      );
+    });
+  }, []);
+
   return {
     conversations,
     isLoading,
     refreshConversations: fetchConversations,
     markConversationRead,
+    upsertConversation,
   };
 }
